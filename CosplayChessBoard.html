@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script src="konva.js"></script>
+	
+	<meta charset="utf-8">
+	<title>Anime Boston Cosplay Chess</title>
+	<style>
+		body {
+			margin: 0;
+			padding: 0;
+			overflow: hidden;
+			background-color: #f0f0f0;
+		}
+		
+		/* Modal video component - background*/
+		.modal {
+			display: none; /* Hidden by default */
+			position: fixed; /* Stay in place */
+			z-index: 1; /* Sit on top */
+			padding-top: 0px; /* Location of the box */
+			left: 0;
+			top: 0;
+			width: 100%; /* Full width */
+			height: 100%; /* Full height */
+			overflow: auto; /* Enable scroll if needed */
+			background-color: rgb(0,0,0); /* Fallback color */
+			background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+		}
+
+		/* Modal video component - content */
+		.modal-content {
+			background-color: #000;
+			margin: auto;
+			padding: 20px;
+			border: 1px solid #000;
+			width: 90%;
+		}
+
+		/* Modal video component - close button */
+		.close {
+			color: #ffffff;
+			float: right;
+			font-size: 28px;
+			font-weight: bold;
+		}
+
+		.close:hover,
+		.close:focus {
+			color: #000;
+			text-decoration: none;
+			cursor: pointer;
+		}
+	</style>
+</head>
+
+<body background="background.png">
+
+	<div id="container"></div>
+	<div id="myModal" class="modal">
+
+  <!-- Modal video component content -->
+	<div class="modal-content">
+		<span class="close">&times;</span>
+			<video id="superAttack">
+				<source src="attackvideo.mp4" type="video/mp4" >
+			</video>
+	  </div>
+
+	</div>
+	<script>	
+	
+	/*-------------------------------------------------------------------------------------------------------------------------------------------
+	BUILDING THE BOARD---------------------------------------------------------------------------------------------------------------------------
+	---------------------------------------------------------------------------------------------------------------------------------------------*/
+	
+	var width, height; //total height and width of the screen
+	
+	var centerX, centerY; //Center of the screen
+	var squareSize; //Size of chessboard and graveyard squares
+	var imageSize, imageScale; //Size of pictures for the chessboard pieces, scaling to fit within squareSize
+	
+	var margin, minimargin; //Margins for the chessboard and graveyards - margin = external margin, minimargin = internal margin between images
+	
+	var borderX, borderY; //Starting top, left coordinator for chessboard border
+	var team1X, team2X, teamY; //Top left for the graveyard areas
+	var boardX, boardY; //Top left for the chessboard
+
+	var fightImage, fightImageX, fightImageY, fightImageScaleX, fightImageScaleY; //Fight image to be used as the background during the "vs" screen
+	var fightScareSize, fightSquareScale; //Size of squares for "vs" screen, image scaling
+	var modal = document.getElementById('myModal');; //modal window for displaying custom fight graphics/images
+	var span = document.getElementsByClassName("close")[0];	// <span> element that closes the modal
+	
+	var stage, bordertheme, graveYard, chessBoard, attackLayer;//Main presentation 'stage', background for chessboard, graveyard areas, and chessboard
+	
+	var textFontSize; //Font size for the title and "vS" screen
+	
+	var pieces, graveNames, graves, startingSquares; //Chess pieces, IDs for graveyard spaces, graveyard spaces, IDs for starting squares
+	
+	var orientation = "left"; //Left = A1 is on the left. Right = A1 is on the right. 
+
+	
+	//Based on the current size of the screen, set size and positioning for board elements
+	function setDisplayDimensions()
+	{
+		width = window.innerWidth;
+		height = window.innerHeight;
+	 
+		centerX = Math.floor(window.innerWidth/2);
+		centerY = Math.floor(window.innerHeight/2);
+		
+		squareSize = Math.floor(height/9.6);
+		imageSize = 291; 
+		imageScale = squareSize/imageSize;
+		
+		margin = 0.4*squareSize;
+		minimargin = 0.1*squareSize;
+		
+		borderX = centerX - ((4*squareSize)+margin);
+		borderY = centerY - ((4*squareSize)+ margin); 
+		
+		team1X = borderX - (2*squareSize) - (4*margin);
+		team2X = borderX + (8*squareSize) + (3*margin);
+		teamY = centerY - (((8*squareSize)+(9*minimargin))/2);
+		
+		boardX = borderX + margin;
+		boardY = borderY + margin;
+		
+		fightImageX = 1920;
+		fightImageY = 1080; 
+		fightImageScaleX = width/fightImageX;
+		fightImageScaleY = height/fightImageY;
+		
+		fightSquareSize = 3*squareSize;
+		fightSquareScale = fightSquareSize/imageSize;
+	 
+	 	textFontSize = Math.floor(1*squareSize); 
+		if(textFontSize == 0){textFontSize += 1;}
+	}
+	
+	//Initialize drawing elements such as borders, graveyards, chessboard etc.
+	function initializeBoardElements()
+	{
+	
+		stage = new Konva.Stage({
+			container: 'container',
+			width: width,
+			height: height
+		});
+		borderTheme = new Konva.Layer();
+		graveYard = new Konva.Layer();
+		chessBoard = new Konva.Layer();
+	}
+	
+	//Sets up grave names, starting squares based on board orientation
+	function setBoardOrientation()
+	{
+		pieces = [];
+		graves = [];
+		graveNames = ["t2g9", "t2g10", "t2g11", "t2g12", "t2g13", "t2g14", "t2g15", "t2g16", 
+						"t2g1", "t2g2", "t2g3", "t2g3", "t2g4", "t2g5", "t2g6", "t2g7", "t2g8", 
+						"t1g9", "t1g10", "t1g11", "t1g12", "t1g13", "t1g14", "t1g15", "t1g16", 
+						"t1g1", "t1g2", "t1g3", "t1g3", "t1g4", "t1g5", "t1g6", "t1g7", "t1g8"]; 
+		
+		startingSquares = ["A8", "A7", "A6", "A5", "A4", "A3", "A2", "A1", 
+							"B8", "B7", "B6", "B5", "B4", "B3", "B2", "B1",
+							"G8", "G7", "G6", "G5", "G4", "G3", "G2", "G1",
+							"H8", "H7", "H6", "H5", "H4", "H3", "H2", "H1"];
+		
+	}
+	
+	//If A1 is on the left, returns true. If A1 is on the right, returns false. 
+	//Use to determine whether the board is oriented starting on stage left or on stage right
+	//Default "normal" orientation is starting on stage left
+	function isNormalOrientation()
+	{
+		if(orientation == "left"){return true;}
+		else{return false;}
+	}
+	
+	//Return black or white depending on which square this is - 0,0 returns H8 (black) - 7,7 returns A1 (black)
+	//Use to fill the squares on the chessboard
+	function returnFill(row, col)
+	{	
+		var fillID = 1;
+		if(row % 2 > 0){fillID *= -1;}
+		if(col % 2 > 0){fillID *= -1;}
+		if(fillID > 0){return 'black';}
+		else{return 'white';}
+	}
+	
+	//Return the name of the square - 0,0 returns H8 (black) - 7,7 returns A1 (black)
+	//Name all of the sqares based on chessboard orientation
+	function returnID(row,col)
+	{	
+		var letter;
+		switch(row) {
+			case 0:
+				letter = "H";
+				break;
+			case 1:
+				letter = "G";
+				break;
+			case 2:
+				letter = "F";
+				break;
+			case 3:
+				letter = "E";
+				break;
+			case 4:
+				letter = "D";
+				break;
+			case 5:
+				letter = "C";
+				break;
+			case 6:
+				letter = "B";
+				break;
+			default:
+				letter = "A";
+				break;
+		
+		}
+		
+		var number = 8 - col;
+		return letter + number;
+		
+	}
+	
+	//Return the name (ID) of the grave yard position
+	//Use to determine where to send a piece once it has been taken
+	function returnGraveName(pointer)
+	{
+		var team; 
+		if(pointer < totalPieces/2){team = "t1";}
+		else {team = "t2";}
+		
+		var gravename = "g" + ((pointer % (totalPieces/2))+1);
+		
+		return team + gravename;
+	}
+	
+	//Create boarders for spots that are unfilled on the board, such as graveyard spaces
+	function buildBorders()
+	{
+		var borderDim = (squareSize*8) + (margin*2);
+		
+		var border = new Konva.Rect({
+			x: borderX,
+			y: borderY,
+			width: borderDim,
+			height: borderDim,
+			stroke: '#7552927',
+			strokeWidth: 0,
+			fillLinearGradientStartPoint: {
+				x: 0,
+				y: 0},
+			fillLinearGradientEndPoint: {
+				x: borderDim,
+				y: borderDim},
+			fillLinearGradientColorStops: [0, '#755927', 0.25, '#ffffc2', 0.5, '#d8b967', 0.75, '#958143', 1, '#755927']	
+			});
+			
+		borderTheme.add(border);
+			
+		var letters = ["A", "B", "C", "D", "E", "F", "G", "H"];
+		var numbers = [1, 2, 3, 4, 5, 6, 7, 8];
+
+		var letterX = boardX - (0.5*margin);
+		var numberX = boardX + (0.5*squareSize); //This will change
+		
+		var letterY = boardY + (0.5*squareSize); //This will change
+		var numberY = boardY + (8*squareSize);
+		
+		//Calculate the fontSize
+		//Take the squareSize, divide by 4
+		//If 0, set as 1 so font size is non zero
+		var dyfontSize = Math.floor(0.4*squareSize); 
+		if(dyfontSize == 0){fontSize += 1;}
+		
+		for(var i = 0; i < 8; i++)
+		{
+			var letterLabel = new Konva.Text({
+				x: letterX,
+				y: letterY + (squareSize*i),
+				text: letters[i],
+				fontSize: dyfontSize,
+				fontFamily: 'Arial',
+				fill: 'black'
+				});
+				
+			letterLabel.setOffset({
+			x: letterLabel.getWidth() / 2 });
+			
+			letterLabel.setOffset({
+				y: letterLabel.getHeight() / 2 });
+			
+			borderTheme.add(letterLabel);
+			
+			var numberLabel = new Konva.Text({
+				x: numberX + (squareSize*i),
+				y: numberY,
+				text: numbers[i],
+				fontSize: dyfontSize,
+				fontFamily: 'Arial',
+				fill: 'black'
+				});
+				
+			numberLabel.setOffset({
+			x: numberLabel.getWidth() / 2 });
+		
+			borderTheme.add(numberLabel);
+		}
+		
+		
+		var team1border = new Konva.Rect({
+			x: team1X,
+			y: teamY,
+			width: (2*squareSize) + (3*margin),
+			height: (8*squareSize) + (9*minimargin),
+			stroke: '#7552927',
+			strokeWidth: 0,
+			fillLinearGradientStartPoint: {
+				x: 0,
+				y: 0},
+			fillLinearGradientEndPoint: {
+				x: borderDim,
+				y: borderDim},
+			fillLinearGradientColorStops: [0, '#755927', 0.25, '#ffffc2', 0.5, '#d8b967', 0.75, '#958143', 1, '#755927']	
+			});
+			
+		var team2border = new Konva.Rect({
+			x: team2X,
+			y: teamY,
+			width: (2*squareSize) + (3*margin),
+			height: (8*squareSize) + (9*minimargin),
+			stroke: '#7552927',
+			strokeWidth: 0,
+			fillLinearGradientStartPoint: {
+				x: 0,
+				y: 0},
+			fillLinearGradientEndPoint: {
+				x: borderDim,
+				y: borderDim},
+			fillLinearGradientColorStops: [0, '#755927', 0.25, '#ffffc2', 0.5, '#d8b967', 0.75, '#958143', 1, '#755927']	
+			});
+			
+		
+		borderTheme.add(team1border);
+		borderTheme.add(team2border);
+		stage.add(borderTheme);
+	}
+
+	//Instantiate 64 chess squares with black/white coloring
+	function buildChessBoard()
+	{	
+	
+		var startX = boardX;
+		var startY = boardY;
+		
+		//Create the chess board
+		for(var j = 0; j < 64; j++)
+		{
+			var row = Math.floor(j/8);
+			var col = j % 8;
+			
+			var dimX = startX + (squareSize*row);
+			var dimY = startY + (squareSize*col);
+			
+			var id = returnID(row,col); //0,0 returns H8 - 7,7 returns A1
+			var fill = returnFill(row,col); // Returns black or white depending on square
+			
+			var square = new Konva.Rect({
+				x: dimX,
+				y: dimY,
+				width: squareSize,
+				height: squareSize,
+				fill: fill,
+				stroke: 'black',
+				strokeWidth: 0,
+				id: id,
+				});	
+
+			//Listeners for when a chess piece is moving to a new square
+			square.on('click', function() {
+				chessMove(this, "square");
+			});
+			
+			//Add to the layer - DO NOT MOVE
+			chessBoard.add(square);
+		}
+	}
+	
+	//Instantiate 32 graveyard spots with borders, but no fill
+	function buildGraveYards()
+	{	
+		//Create the chess board
+		for(var k = 0; k < 32; k++)
+		{
+			var dimX, dimyY;
+			
+			if(k < 8){dimX = team2X + margin + squareSize + margin;}
+			else if(k < 16){dimX = team2X + margin;}
+			else if(k < 24){dimX = team1X + margin + margin + squareSize;}
+			else{dimX = team1X + margin;}
+			
+			var dimY = teamY + minimargin + (Math.floor(k % 8)*(squareSize+minimargin));
+			
+			
+			var grave = new Konva.Rect({
+				x: dimX,
+				y: dimY,
+				width: squareSize,
+				height: squareSize,
+				stroke: '#7552927',
+				strokeWidth: 1,
+				id: returnGraveName(k)
+				});	
+			
+			grave.on('click', function() {
+				chessMove(this, "grave");
+			});
+			
+			grave.on('dblclick', function(){
+				buildTitleScreen();
+			});
+			
+			graves.push(grave);
+			//Add to the layer - DO NOT MOVE
+			graveYard.add(grave);
+		}
+		stage.add(graveYard);
+	}	
+	
+	//Define the spaces in the team graveyard for the pieces
+	function setTeamSpace(dimX, dimY, strokeColor)
+	{
+		var space = new Konva.Rect({
+		  x: dimX,
+		  y: dimY,
+		  width: squareSize,
+		  height: squareSize,
+		  stroke: strokeColor,
+		  strokeWidth: 1
+		});
+		return space;
+	}
+	
+	function buildTitleScreen()
+	{
+			var titleShadow = new Konva.Rect({
+			x: 0,
+			y: 0,
+			width: width,
+			height: height,
+			fill: 'black',
+			opacity: 0.5,
+			id: 'titleShadow',
+		});
+		
+		var titlePlaque = new Konva.Rect({
+			x: centerX,
+			y: centerY - squareSize,
+			width: width,
+			height: squareSize * 2,
+			fill: 'black',
+			stroke: 'white',
+			strokeWidth: 1,
+			id: 'title',
+		});	
+			
+		titlePlaque.setOffset({
+				x: titlePlaque.getWidth() / 2
+			});
+			
+		var titleText = new Konva.Text({
+			x: centerX,
+			y: centerY - (0.5*squareSize),
+			text: 'Cosplay Chess',
+			fontSize: textFontSize,
+			fontFamily: 'Arial Black',
+			fill: 'white'
+		});	
+		
+		titleText.setOffset({
+				x: titleText.getWidth() / 2
+			});
+		
+		titlePlaque.on('click', function() {
+					titlePlaque.destroy();
+					titleText.destroy();
+					titleShadow.destroy();
+					chessBoard.draw();
+				});
+				
+		titleText.on('click', function() {
+					titlePlaque.destroy();
+					titleText.destroy();
+					titleShadow.destroy();
+					chessBoard.draw();
+				});
+				
+		titleShadow.on('click', function() {
+					titlePlaque.destroy();
+					titleText.destroy();
+					titleShadow.destroy();
+					chessBoard.draw();
+				});
+		
+		chessBoard.add(titleShadow);
+		chessBoard.add(titlePlaque);
+		chessBoard.add(titleText);
+		chessBoard.draw();
+	}
+	
+	
+	/*-------------------------------------------------------------------------------------------------------------------------------------------
+	BUILDING THE CHESS PIECES--------------------------------------------------------------------------------------------------------------------
+	---------------------------------------------------------------------------------------------------------------------------------------------*/
+	//Load the chess pieces and image data
+    function loadChessPieces(sources, callback) {
+        
+		var images = {};
+        var loadedImages = 0;
+        var numImages = 0;
+        // get num of sources
+        for(var src in sources) {
+            numImages++;
+        }
+        for(var src in sources) {
+            images[src] = new Image();
+            images[src].onload = function() {
+                if(++loadedImages >= numImages) {
+                    callback(images);
+                }
+            };
+            images[src].src = sources[src];
+        }
+		
+		fightImage = new Image();
+		fightImage.onload = function() {
+			callback(fightImage);}
+		fightImage.src = fightbgsource;
+	}
+	
+	function returnTeam(pieceNum)
+	{
+		if(pieceNum < (totalPieces/2)){return 'team1';}
+		else{return 'team2'}
+	}
+	
+		//Draw out the chess pieces
+    function drawChessPieces(images) {
+	
+		for(var i = 0; i < totalPieces; i++)
+		{
+			var chessPiece = new Konva.Rect({
+				x: 0,
+				y: 0,
+				width: squareSize,
+				height: squareSize,
+				fillPatternImage: images[i],
+				fillPatternScaleX: imageScale,
+				fillPatternScaleY: imageScale,
+				stroke: 'black',
+				strokeWidth: 1,
+				draggable: false,
+				shadowEnabled: false,
+				shadowColor: 'green',
+				shadowOpacity: 1,
+				shadowBlur: 30,
+				shadowOffsetX: 5,
+				shadowOffsetY: 5,
+				id: returnTeam(i)
+			});
+			
+			chessPiece.hide();
+			
+			chessPiece.on('click', function() {
+				chessMove(this, "piece");
+			});
+			
+			pieces.push(chessPiece);
+			chessBoard.add(chessPiece);
+		}
+		
+		stage.add(chessBoard);
+    }
+	
+	/*-------------------------------------------------------------------------------------------------------------------------------------------
+	CHESS GAME-----------------------------------------------------------------------------------------------------------------------------------
+	---------------------------------------------------------------------------------------------------------------------------------------------*/
+	var activePiece; //piece that has been most recently clicked
+	var pieceCtr; //How many pieces have been loaded onto the board
+	var totalPieces; //Total number of pieces on the board
+	
+	function initializeGame()
+	{
+		activePiece = null; //Piece that most recently clicked
+		pieceCtr = 0; //Keeps track of how many pieces have been loaded onto the board
+		totalPieces = 32;
+	}
+	
+	//clickObj is the object that was clicked and invoked the method
+	//clickObjType is grave, square, or piece
+	function chessMove(clickObj, clickObjType)
+	{
+		//If we do not currently have an active piece, determine if a piece is activating
+		if(activePiece === null) { 
+			if(clickObjType.includes("piece"))
+			{
+				activePiece = clickObj;
+				activePiece.setAttr('shadowEnabled',true);
+				chessBoard.draw();
+			}
+			else if(clickObjType.includes("grave"))
+			{
+				//This is a grave. We shouldn't do anything. 
+			}
+			else
+			{
+				//This is a square.
+				//If not all the pieces on the board have been loaded
+				//Then we continue to load on the board
+				if(pieceCtr < totalPieces)
+				{
+					//Get the square index from the board
+					//Set the location of the piece to that square
+					var pointerID = startingSquares.indexOf(clickObj.getAttr('id'));
+					var newPiece = pieces[pointerID];
+					newPiece.setAttr('x', clickObj.getAttr('x'));
+					newPiece.setAttr('y', clickObj.getAttr('y'));
+					newPiece.show();
+					chessBoard.draw();
+					pieceCtr += 1;
+				}
+				else
+				{
+					//We have started the game. Don't do anything. 
+				}
+			}
+		}
+		//If we already have an active piece, determine what action to take
+		else
+		{
+			//If we click on the same piece, deactivate that piece (mistake click)
+			if(activePiece === clickObj)
+			{
+				activePiece.setAttr('shadowEnabled',false);
+				chessBoard.draw();
+				activePiece = null;
+			}
+			else
+			{				
+				var activePieceID = activePiece.getAttr('id');
+				var clickObjID = clickObj.getAttr('id');
+				
+				//Is the second clicked object a piece
+				if(clickObjType.includes("piece"))
+				{
+					if(activePieceID === clickObjID)
+					{	
+						//Swap the two friendly pieces
+						var newX, newY;
+						newX = clickObj.getAttr('x');
+						newY = clickObj.getAttr('y');
+						
+						clickObj.position({x: activePiece.getAttr('x'), y:activePiece.getAttr('y')});
+						activePiece.position({x: newX, y: newY});
+						activePiece.setAttr('shadowEnabled',false);
+						chessBoard.draw();
+						
+						activePiece = null;
+					}
+					else
+					{
+						//Execute attack sequence
+						loadAttack(activePiece, clickObj);
+						
+						activePiece.position({x: clickObj.getAttr('x'), y: clickObj.getAttr('y')});
+						
+						var pointerID = pieces.indexOf(clickObj);
+						var grave = graves[pointerID];
+						
+							clickObj.setAttr('x', grave.getAttr('x'));
+							clickObj.setAttr('y', grave.getAttr('y'));
+												
+						activePiece.setAttr('shadowEnabled',false);
+						
+						chessBoard.draw();
+
+						activePiece = null;
+					}
+				}
+				else
+				{
+					//Move the chess piece to the board space that was clicked
+					activePiece.position({x: clickObj.getAttr('x'), y: clickObj.getAttr('y')});
+					activePiece.setAttr('shadowEnabled',false);
+					chessBoard.draw();
+					activePiece = null;
+				}
+				
+			}
+
+		}
+	}
+	
+	//Display the attacking/defending pieces on a separate screen with a new background for visual effect during the fight
+	function loadAttack(attack, defend)
+	{
+		var attackLayer = new Konva.Rect({
+				x: 0,
+				y: 0,
+				width: width,
+				height: height,
+				fillPatternScaleX: fightImageScaleX,
+				fillPatternScaleY: fightImageScaleY,
+				fillPatternImage: fightImage,
+				strokeWidth: 0,
+				id: 'attackLayer',
+				});	
+				
+		var attacker = new Konva.Rect({
+				x: Math.floor(0.25*width),
+				y: Math.floor(0.5*height),
+				width: imageSize,
+				height: imageSize,
+				fillPatternImage: attack.getAttr('fillPatternImage'),
+				stroke: 'black',
+				strokeWidth: 1,
+				draggable: false,
+				shadowEnabled: true,
+				shadowColor: 'white',
+				shadowOpacity: 1,
+				shadowBlur: 30
+			});
+			
+		attacker.setOffset({
+			x: attacker.getWidth() / 2,
+			y: attacker.getHeight() / 2});
+			
+		var defender = new Konva.Rect({
+				x: Math.floor(0.75*width),
+				y: Math.floor(0.5*height),
+				width: imageSize,
+				height: imageSize,
+				fillPatternImage: defend.getAttr('fillPatternImage'),
+				stroke: 'black',
+				strokeWidth: 1,
+				draggable: false,
+				shadowEnabled: true,
+				shadowColor: 'white',
+				shadowOpacity: 1,
+				shadowBlur: 30
+			});			
+		
+		defender.setOffset({
+			x: defender.getWidth() / 2,
+			y: defender.getHeight() / 2});
+				
+		var attackText = new Konva.Text({
+			x: centerX,
+			y: centerY,
+			text: 'VS',
+			fontSize: textFontSize,
+			fontFamily: 'Arial Black',
+			fill: 'white'
+		});
+		
+		attackText.setOffset({
+			x: attackText.getWidth() / 2
+		});
+		
+		//Super attack refers to the video that can be played during the fight by clicking on the star in the center of the fight screen
+		var superAttack = new Konva.Star({
+			x: centerX,
+			y: centerY - (2 * squareSize),
+			numPoints: 5,
+			innerRadius: squareSize * 0.5,
+			outerRadius: squareSize,
+			fillLinearGradientStartPoint: {
+				x: 0,
+				y: 0},
+			fillLinearGradientEndPoint: {
+				x: squareSize,
+				y: squareSize},
+			fillLinearGradientColorStops: [0, '#755927', 0.25, '#ffffc2', 0.5, '#d8b967', 0.75, '#958143', 1, '#755927'],
+			draggable: false
+			});
+		
+		superAttack.on('click', function() {
+				var myvideo = document.getElementById("superAttack");
+				myvideo.height = 0.90*height;
+				modal.style.display = "block";
+				myvideo.play();
+		});
+		
+			//Listeners
+			attackLayer.on('click', function() {
+				attackLayer.destroy();
+				attackText.destroy();
+				attacker.destroy();
+				defender.destroy();
+				superAttack.destroy();
+				chessBoard.draw();
+			});
+			
+			//Add to the layer - DO NOT MOVE; logic does not execute correctly if moved elsewhere
+			chessBoard.add(attackLayer);
+			chessBoard.add(attackText);
+			chessBoard.add(attacker);
+			chessBoard.add(defender);
+			chessBoard.add(superAttack);
+			chessBoard.draw();
+	}
+	
+	//Logic for closing modal attack window
+	// When the user clicks on <span> (x), close the modal
+	span.onclick = function() {
+		var myvideo = document.getElementById("superAttack");
+		myvideo.pause();
+		modal.style.display = "none";
+	}
+	
+	//Image sources
+	var fightbgsource = 'FightBackground.png';
+		
+    var sources = {
+        0: 'participants/piece1.png', //team 2 queen rook
+        1: 'participants/piece2.png', //team 2 queen knight
+		2: 'participants/piece3.png', //team 2 queen bishop
+		3: 'participants/piece4.png', //team 2 queen
+		4: 'participants/piece5.png', //team 2 king
+        5: 'participants/piece6.png', //team 2 king bishop
+		6: 'participants/piece7.png', //team 2 king knight
+		7: 'participants/piece8.png', //team 2 king rook
+		8: 'participants/piece9.png', //team 2 queen rook pawn
+        9: 'participants/piece10.png', //team 2 queen knight pawn
+		10: 'participants/piece11.png', //team 2 queen bishop pawn
+		11: 'participants/piece12.png', //team 2 queen pawn
+		12: 'participants/piece13.png', //team 2 king pawn
+        13: 'participants/piece14.png', //team 2 king bishop pawn
+		14: 'participants/piece15.png', //team 2 king knight pawn
+		15: 'participants/piece16.png', //team 2 king rook pawn
+		16: 'participants/piece17.png', //team 1 queen rook
+        17: 'participants/piece18.png', //team 1 queen knight
+		18: 'participants/piece19.png', //team 1 queen bishop
+		19: 'participants/piece20.png', //team 1 queen
+		20: 'participants/piece21.png', //team 1 king
+        21: 'participants/piece22.png', //team 1 king bishop
+		22: 'participants/piece23.png', //team 1 king knight
+		23: 'participants/piece24.png', //team 1 king rook
+		24: 'participants/piece25.png', //team 1 queen rook pawn
+        25: 'participants/piece26.png', //team 1 queen knight pawn
+		26: 'participants/piece27.png', //team 1 queen bishop pawn
+		27: 'participants/piece28.png', //team 1 queen pawn
+		28: 'participants/piece29.png', //team 1 king pawn
+        29: 'participants/piece30.png', //team 1 king bishop pawn
+		30: 'participants/piece31.png', //team 1 king knight pawn
+		31: 'participants/piece32.png' //team 1 king rook pawn
+    };
+
+	
+	/*-------------------------------------------------------------------------------------------------------------------------------------------
+	MAIN-----------------------------------------------------------------------------------------------------------------------------------------
+	---------------------------------------------------------------------------------------------------------------------------------------------*/
+	initializeGame();
+	
+	setDisplayDimensions();
+	initializeBoardElements();
+	setBoardOrientation();
+	
+	buildBorders();
+	buildGraveYards();
+	buildChessBoard();
+	buildTitleScreen();
+
+    loadChessPieces(sources, function(images) {
+        drawChessPieces(images);
+    });
+	stage.add(chessBoard);
+		
+	</script>
+	
+</body>
+</html>
